@@ -28,12 +28,16 @@ typedef struct {
 // Structure représentant le serveur-contrôleur
 typedef struct {
     int etat_trafic[4]; // Un tableau pour stocker l'état du trafic pour chaque carrefour
+    sem_t semaphore; // Semaphore pour contrôler l'accès à la mémoire partagée
 } ServeurControleur;
 
 // Fonction pour transmettre une requête au serveur-contrôleur
 void transmettre_requete(Echangeur* echangeur, Vehicule* vehicule, ServeurControleur* serveur_controleur) {
     // Acquérir le sémaphore du carrefour
     sem_wait(&echangeur->semaphore);
+
+    // Acquérir le sémaphore de la mémoire partagée
+    sem_wait(&serveur_controleur->semaphore);
 
     // Traitement de la requête et envoi au serveur-contrôleur
     // ...
@@ -44,6 +48,9 @@ void transmettre_requete(Echangeur* echangeur, Vehicule* vehicule, ServeurContro
     // Mise à jour de la position du véhicule
     vehicule->position.carrefour_id = echangeur->carrefour_id;
     strcpy(vehicule->position.emplacement, "haut"); // Supposons que tous les véhicules arrivent en haut par défaut
+
+    // Libérer le sémaphore de la mémoire partagée
+    sem_post(&serveur_controleur->semaphore);
 
     // Libérer le sémaphore du carrefour
     sem_post(&echangeur->semaphore);
@@ -65,11 +72,12 @@ int main() {
     // Initialisation des composants
     ServeurControleur serveur_controleur;
     memset(serveur_controleur.etat_trafic, 0, sizeof(serveur_controleur.etat_trafic)); // Initialisation à zéro
+    sem_init(&serveur_controleur.semaphore, 0, 1); // Initialisation du sémaphore de la mémoire partagée
 
     Echangeur echangeurs[4];
     for (int i = 0; i < 4; ++i) {
         echangeurs[i].carrefour_id = i + 1;
-        sem_init(&echangeurs[i].semaphore, 0, 1); // Initialisation des sémaphores avec 1 comme valeur initiale
+        sem_init(&echangeurs[i].semaphore, 0, 1); // Initialisation des sémaphores des carrefours avec 1 comme valeur initiale
     }
 
     Vehicule vehicules[3];
@@ -106,6 +114,7 @@ int main() {
     }
 
     // Destruction des sémaphores
+    sem_destroy(&serveur_controleur.semaphore);
     for (int i = 0; i < 4; ++i) {
         sem_destroy(&echangeurs[i].semaphore);
     }
