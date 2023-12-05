@@ -4,6 +4,12 @@
 #include <pthread.h>
 #include <semaphore.h>
 
+// Structure représentant un échangeur
+typedef struct {
+    int carrefour_id;
+    sem_t semaphore; // Semaphore pour contrôler l'accès au carrefour
+} Echangeur;
+
 // Structure représentant la position
 typedef struct {
     int carrefour_id;
@@ -16,14 +22,8 @@ typedef struct {
     int vitesse;
     int priorite; // Nouveau champ pour la priorité du véhicule
     Position position;
-    int* itineraire;
+    Echangeur* itineraire; // Modification du type à Echangeur*
 } Vehicule;
-
-// Structure représentant un échangeur
-typedef struct {
-    int carrefour_id;
-    sem_t semaphore; // Semaphore pour contrôler l'accès au carrefour
-} Echangeur;
 
 // Structure représentant le serveur-contrôleur
 typedef struct {
@@ -61,7 +61,7 @@ void* vehicule_thread(void* arg) {
 
     // Simulation du mouvement du véhicule
     for (int i = 0; i < 5; ++i) {
-        transmettre_requete((Echangeur*)vehicule->itineraire, vehicule, NULL);
+        transmettre_requete(vehicule->itineraire, vehicule, NULL);
         sleep(1); // Supposons qu'une unité de temps est équivalente à 1 seconde
     }
 
