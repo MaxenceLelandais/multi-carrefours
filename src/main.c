@@ -71,7 +71,6 @@ void* vehicule_thread(void* arg) {
 int main() {
     // Initialisation des composants
     ServeurControleur serveur_controleur;
-    memset(serveur_controleur.etat_trafic, 0, sizeof(serveur_controleur.etat_trafic)); // Initialisation à zéro
     sem_init(&serveur_controleur.semaphore, 0, 1); // Initialisation du sémaphore de la mémoire partagée
 
     Echangeur echangeurs[4];
@@ -79,6 +78,9 @@ int main() {
         echangeurs[i].carrefour_id = i + 1;
         sem_init(&echangeurs[i].semaphore, 0, 1); // Initialisation des sémaphores des carrefours avec 1 comme valeur initiale
     }
+
+    // Initialisation de l'état du trafic à zéro
+    memset(serveur_controleur.etat_trafic, 0, sizeof(serveur_controleur.etat_trafic));
 
     Vehicule vehicules[3];
     strcpy(vehicules[0].type, "Voiture");
