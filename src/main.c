@@ -1,123 +1,114 @@
-#include <ncurses.h>
-#include <sys/ioctl.h>
 #include <stdio.h>
-#include <unistd.h>
+#include <stdlib.h>
+#include <string.h>
+#include <pthread.h>
+#include <semaphore.h>
 
-void draw(int width, int height, int x, int y, int modev, int modeh);
+// Structure représentant la position
+typedef struct {
+    int carrefour_id;
+    char emplacement[10]; // "haut", "bas", "gauche", "droite", etc.
+} Position;
 
-void carrefour(int width, int height){
-    int tailleCaseX = 1;
-    int tailleCaseY = 1;
+// Structure représentant un véhicule
+typedef struct {
+    char type[20];
+    int vitesse;
+    int priorite; // Nouveau champ pour la priorité du véhicule
+    Position position;
+    int* itineraire;
+} Vehicule;
 
-    draw(6,3, 3, 1, 0, 0);
-    draw(12,3, 19, 1, 0, 0);
-    draw(6,3, 42, 1, 0, 0);
+// Structure représentant un échangeur
+typedef struct {
+    int carrefour_id;
+    sem_t semaphore; // Semaphore pour contrôler l'accès au carrefour
+} Echangeur;
 
-    draw(6,5, 3, 13, 0, 0);
-    draw(12,5, 19, 13, 0, 0);
-    draw(6,5, 42, 13, 0, 0);
+// Structure représentant le serveur-contrôleur
+typedef struct {
+    int etat_trafic[4]; // Un tableau pour stocker l'état du trafic pour chaque carrefour
+} ServeurControleur;
 
-    draw(6,3, 3, 29, 0, 0);
-    draw(12,3, 19, 29, 0, 0);
-    draw(6,3, 42, 29, 0, 0);
+// Fonction pour transmettre une requête au serveur-contrôleur
+void transmettre_requete(Echangeur* echangeur, Vehicule* vehicule, ServeurControleur* serveur_controleur) {
+    // Acquérir le sémaphore du carrefour
+    sem_wait(&echangeur->semaphore);
+
+    // Traitement de la requête et envoi au serveur-contrôleur
+    // ...
+
+    // Exemple : Mise à jour de l'état du trafic sur le serveur-contrôleur
+    serveur_controleur->etat_trafic[echangeur->carrefour_id - 1] += 1; // Supposons que chaque véhicule incrémente le trafic de 1
+
+    // Mise à jour de la position du véhicule
+    vehicule->position.carrefour_id = echangeur->carrefour_id;
+    strcpy(vehicule->position.emplacement, "haut"); // Supposons que tous les véhicules arrivent en haut par défaut
+
+    // Libérer le sémaphore du carrefour
+    sem_post(&echangeur->semaphore);
 }
 
-void menu(int x, int y){
-    mvprintw(y - 1, x - 5, "1. Générer véhicule.");
-    mvprintw(y, x - 5, "2. Tout effacer.");
-    mvprintw(y + 1, x - 5, "3. Automatiser.");
-    refresh();
-}
+void* vehicule_thread(void* arg) {
+    Vehicule* vehicule = (Vehicule*)arg;
 
-void generer(int x, int y){
-    mvprintw(y - 1, x - 5, "  Type véhicule.");
-    mvprintw(y, x - 5, "1. Simple.");
-    mvprintw(y + 1, x - 5, "2. Prioritaire.");
-    refresh();
-}
-
-void select(){
-    int choice;
-    // Get user input
-    while (1) {
-        choice = getch();
-        // Process the choice
-        switch (choice) {
-            case '1':
-                // Handle Option 1
-                generer(70, 17);
-                break;
-            case '2':
-                // Handle Option 2
-                mvprintw(2, 0, "You selected Option 2");
-                break;
-            case '3':
-                // Handle Option 3
-                mvprintw(4, 0, "You selected Option 3");
-                break;
-            case 'q':
-                // Quit the program if 'q' is pressed
-                endwin();
-                break;
-        }
-        refresh(); // Refresh the screen after processing user input
-    }
-}
-
-bool load(WINDOW *win){
-    FILE *file;
-    char filename[] = "map.txt";
-    char line[255];  // A buffer to store each line
-
-    // Ouvre le fichier en mode lecture
-    file = fopen(filename, "r");
-
-    // Vérifie si le fichier est ouvert avec succès
-    if (file == NULL) {
-        fprintf(stderr, "Impossible d'ouvrir le fichier %s\n", filename);
-        return false;
+    // Simulation du mouvement du véhicule
+    for (int i = 0; i < 5; ++i) {
+        transmettre_requete((Echangeur*)vehicule->itineraire, vehicule, NULL);
+        sleep(1); // Supposons qu'une unité de temps est équivalente à 1 seconde
     }
 
-    // Lit et affiche chaque ligne du fichier
-    while (fgets(line, sizeof(line), file) != NULL) {
-        wprintw(win, "%s", line);
-    }
-    refresh();
-
-    // Ferme le fichier
-    fclose(file);
-}
-
-void draw(int width, int height, int x, int y, int modev, int modeh){
-
-    WINDOW *win = newwin(height, width, y,x); // height, width, posty, postx
-    box(win, modev, modeh); //remplace les bordures (pas les angles) par des chars, >0 char noir, <0 char blanc, =0 rien
-    wrefresh(win);
+    pthread_exit(NULL);
 }
 
 int main() {
-    
+    // Initialisation des composants
+    ServeurControleur serveur_controleur;
+    memset(serveur_controleur.etat_trafic, 0, sizeof(serveur_controleur.etat_trafic)); // Initialisation à zéro
 
-    initscr(); // Initialise ncurses
-    noecho();  // N'affiche pas les caractères saisis
-    curs_set(0); // Masque le curseur
+    Echangeur echangeurs[4];
+    for (int i = 0; i < 4; ++i) {
+        echangeurs[i].carrefour_id = i + 1;
+        sem_init(&echangeurs[i].semaphore, 0, 1); // Initialisation des sémaphores avec 1 comme valeur initiale
+    }
 
-    int maxY, maxX;
-    getmaxyx(stdscr, maxY, maxX); // Obtient les dimensions du terminal
+    Vehicule vehicules[3];
+    strcpy(vehicules[0].type, "Voiture");
+    vehicules[0].vitesse = 60;
+    vehicules[0].itineraire = &echangeurs[0];
+    vehicules[0].position.carrefour_id = 0;
+    strcpy(vehicules[0].position.emplacement, "inconnu");
+    vehicules[0].priorite = 2;
 
-    // Crée une nouvelle fenêtre pour afficher le texte
-    WINDOW *win = newwin(maxY, maxX, 0, 0);
-    
-    load(win);
-    // Rafraîchit la fenêtre pour afficher les modifications
-    wrefresh(win);
-    carrefour(1,1);
-    // Attend que l'utilisateur appuie sur une touche avant de quitter
-    menu(70, 17);
-    select();
+    strcpy(vehicules[1].type, "Ambulance");
+    vehicules[1].vitesse = 80;
+    vehicules[1].itineraire = &echangeurs[0];
+    vehicules[1].position.carrefour_id = 0;
+    strcpy(vehicules[1].position.emplacement, "inconnu");
+    vehicules[1].priorite = 1;
 
-    // Nettoie les ressources ncurses et ferme le fichier
-    endwin();
+    strcpy(vehicules[2].type, "Camion");
+    vehicules[2].vitesse = 40;
+    vehicules[2].itineraire = &echangeurs[0];
+    vehicules[2].position.carrefour_id = 0;
+    strcpy(vehicules[2].position.emplacement, "inconnu");
+    vehicules[2].priorite = 3;
+
+    // Création des threads pour les véhicules
+    pthread_t threads[3];
+    for (int i = 0; i < 3; ++i) {
+        pthread_create(&threads[i], NULL, vehicule_thread, (void*)&vehicules[i]);
+    }
+
+    // Attente de la fin des threads
+    for (int i = 0; i < 3; ++i) {
+        pthread_join(threads[i], NULL);
+    }
+
+    // Destruction des sémaphores
+    for (int i = 0; i < 4; ++i) {
+        sem_destroy(&echangeurs[i].semaphore);
+    }
 
     return 0;
 }
